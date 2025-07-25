@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Riemann-Grover Experiment by Jefferson</title>
+    <style>
+        :root {
+            --quantum-blue: #0af;
+            --quantum-purple: #70f;
+            --dark-bg: #121212;
+            --card-bg: #1e1e1e;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #eee;
+            background-color: var(--dark-bg);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 3px solid var(--quantum-blue);
+            padding-bottom: 20px;
+        }
+        h1 {
+            color: var(--quantum-blue);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--quantum-blue), var(--quantum-purple));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .subtitle {
+            font-style: italic;
+            color: #aaa;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        pre {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: 'Fira Code', monospace;
+            color: #f8f8f2;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .result-card {
+            background-color: #252525;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+        }
+        .quantum-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            background: linear-gradient(135deg, var(--quantum-blue), var(--quantum-purple));
+            color: white;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Quantum Riemann-Grover Experiment</h1>
+        <p class="subtitle">When pure mathematics meets quantum hardware</p>
+        <div>
+            <span class="quantum-badge">IBMQ Torino</span>
+            <span class="quantum-badge">98% Success</span>
+            <span class="quantum-badge">Qiskit 1.0</span>
+        </div>
+    </header>
+
+    <div class="card">
+        <h2>🔬 Project Overview</h2>
+        <p>Implementation of Grover's algorithm on real quantum hardware (<code>ibm_torino</code>), using fractal patterns derived from Riemann zeta function zeros. Achieved <strong>98% success rate</strong> - above average for real quantum circuits.</p>
+        
+        <h3>Key Features:</h3>
+        <ul>
+            <li>High-precision calculations (50 digits with mpmath)</li>
+            <li>Native gate optimization for IBM hardware</li>
+            <li>3D fractal visualization of Riemann zeros</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <h2>🚀 Quantum Code Highlight</h2>
+        <pre><code># Core Grover circuit construction
+def build_grover_circuit():
+    qc = QuantumCircuit(4)
+    # Native gates for IBM hardware
+    for qubit in range(4):
+        qc.sx(qubit)
+        qc.rz(np.pi/2, qubit)
+    # ... (quantum magic continues)</code></pre>
+    </div>
+
+    <div class="card">
+        <h2>📊 Explosive Results</h2>
+        <div class="results-grid">
+            <div class="result-card">
+                <h3>Performance Metrics</h3>
+                <ul>
+                    <li>Success rate: <strong>98.0%</strong></li>
+                    <li>Physical qubits used: <strong>133</strong></li>
+                    <li>Execution time: <strong>180s</strong></li>
+                </ul>
+            </div>
+            <div class="result-card">
+                <h3>Top States</h3>
+                <ul>
+                    <li><code>|0010⟩</code>: 47.9%</li>
+                    <li><code>|0001⟩</code>: 46.6%</li>
+                    <li><code>|0011⟩</code>: 1.9%</li>
+                </ul>
+            </div>
+        </div>
+        <!-- Replace with actual chart image -->
+        <img src="resultados.png? text=Quantum+Results+Chart" alt="Results Chart" style="width:100%; border-radius:5px; margin-top:20px;">
+    </div>
+
+    <div class="card">
+        <h2>💻 Installation Guide</h2>
+        <h3>Requirements</h3>
+        <pre><code># requirements.txt
+qiskit==1.0.0
+qiskit-ibm-runtime==0.22.0
+mpmath==1.3.0
+numpy==1.24.0</code></pre>
+
+        <h3>Run the Experiment</h3>
+        <pre><code># Clone repository
+git clone https://github.com/Jefferson-Quantum/Riemann-Grover.git
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Execute (with your IBMQ token)
+python experimento.py --token YOUR_IBMQ_TOKEN</code></pre>
+    </div>
+
+    <div class="card">
+        <h2>⚠️ Quantum Warnings</h2>
+        <ul>
+            <li>Results may vary due to quantum decoherence</li>
+            <li>IBMQ token required for hardware execution</li>
+            <li>High-precision calculations require significant resources</li>
+            <li>"If it doesn't work, check your classical mindset" 😉</li>
+        </ul>
+    </div>
+
+    <footer>
+        <h2>📜 License</h2>
+        <p>MIT License - Free for academic use (with attribution). Commercial use requires permission.</p>
+        
+        <h2>🌌 Contact</h2>
+        <p>
+            <strong>Jefferson Massami Okushigue</strong><br>
+            <a href="mailto:okushigue@gmail.com" style="color: var(--quantum-blue);">okushigue@gmail.com</a>
+        </p>
+        <p>© 2025 Quantum Riemann Research</p>
+    </footer>
+</body>
+</html>
