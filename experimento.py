@@ -226,7 +226,7 @@ if __name__ == "__main__":
     print("=" * 60)
     
     # Configuração do IBM Quantum
-    token = "BSD76BdRqeV06xKE6oAHrIZBwI4vWYWBlLLVw_Pnjpq5"  # Substitua pelo seu token
+    token = "YOU TOKEN HERE"  # Substitua pelo seu token
     try:
         service = QiskitRuntimeService(channel="ibm_cloud", token=token)
         backend = service.least_busy(
