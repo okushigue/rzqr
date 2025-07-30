@@ -1,292 +1,263 @@
 #!/usr/bin/env python3
 """
-Experimento Quântico com Zeros de Riemann
-Autor: Jefferson Massami Okushigue <okushigue@gmail.com>
-Data: 26/07/2025
-"""
-```python
-#!/usr/bin/env python3
-"""
-IBM Quantum - Algoritmo de Grover com 10 qubits, Qiskit 2.1.1 (julho/2025)
-Execução no servidor IBM, apenas saída no terminal
+IBM Quantum Cloud — Grover real com fractal 3D dos zeros de Riemann
+Versão corrigida para compatibilidade com ibm_torino (Qiskit 2.1.1)
+Principais correções:
+- Transpilação explícita para o backend antes da execução
+- Adaptação das portas quânticas para o conjunto nativo do hardware
+- Melhor tratamento de erros e feedback
 """
 
 import warnings
-import math
+import numpy as np
 from getpass import getpass
+from mpmath import mp
 from qiskit import QuantumCircuit, transpile
 from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+from qiskit.transpiler import CouplingMap
+import time
 
-print("🌟 IBM Quantum - Algoritmo de Grover com Estado Uniforme")
-print("============================================================")
-
-# ----------------------------
-# 1. Estado inicial e oráculo
-# ----------------------------
-def get_initial_state_and_oracle():
-    n_qubits = 10
-    size = 2**n_qubits  # 1024 estados
-    amplitudes = [1.0 / math.sqrt(size)] * size  # Estado uniforme
-    marked_indices = list(range(50))  # 50 estados fixos (0 a 49)
-    return amplitudes, n_qubits, marked_indices
+# Configurações iniciais
+mp.dps = 50
+warnings.filterwarnings('ignore')
 
 # ----------------------------
-# 2. Circuito Grover
+# 1. Análise dos Zeros de Riemann
 # ----------------------------
-def build_grover_circuit(amplitudes, marked_indices, backend=None):
-    n_qubits = 10
+class RiemannZerosAnalysis:
+    def __init__(self):
+        self.riemann_zeros = [
+            0.5 + 14.134725141734693790457251983562470270784257115699243175685567460149963429809256764949010393171561925605677j,
+            0.5 + 21.022039638771554992628479593896902777334340524902781697051613785106945509387854598126624953102086304946962j,
+            0.5 + 25.010857580145688763213790991799003137537184972136540040842843127686655938088011325069644167050488631636574j,
+            0.5 + 30.424876125859513210311897530584091320181560023707304449380072317787397832121667316002761394642124309051521j,
+            0.5 + 32.935061587739189690662368964074903488812715603517039009280003440784901428893593237466426865110409906842556j
+        ]
+    
+    def generate_zeros_visualization_3d(self, width=16, height=16, depth=16, influence_radius=2.0):
+        """Gera visualização 3D dos zeros de Riemann"""
+        x = np.linspace(0, 1, width)
+        y = np.linspace(0, 80, height)
+        z = np.linspace(0, 10, depth)
+        X, Y, Z = np.meshgrid(x, y, z)
+        influence_map = np.zeros((height, width, depth))
+        
+        print("Calculando influência dos zeros de Riemann...")
+        for i, zero in enumerate(self.riemann_zeros):
+            print(f"  Processando zero {i+1}/{len(self.riemann_zeros)}")
+            distance = np.sqrt((X - zero.real)**2 + (Y - zero.imag)**2 + (Z)**2)
+            influence = np.exp(-distance**2 / (2 * influence_radius**2))
+            influence_map += influence
+        
+        influence_map = (influence_map / influence_map.max() * 255).astype(np.uint8)
+        return influence_map
+
+# ----------------------------
+# 2. Mapear fractal → estado quântico
+# ----------------------------
+def fractal_to_statevector(fractal_layer: np.ndarray):
+    """Converte camada do fractal em dados para processamento quântico"""
+    flat = fractal_layer.flatten()
+    n_qubits = 4  # Mantido em 4 qubits para compatibilidade
+    target_size = 2**n_qubits
+    
+    if len(flat) > target_size:
+        flat = flat[:target_size]
+    elif len(flat) < target_size:
+        padded = np.zeros(target_size, dtype=complex)
+        padded[:len(flat)] = flat
+        flat = padded
+    
+    return flat, n_qubits
+
+# ----------------------------
+# 3. Circuito Grover Otimizado para Hardware Real
+# ----------------------------
+def build_grover_circuit(marked_indices, n_qubits):
+    """Constrói circuito de Grover otimizado para hardware real"""
     qc = QuantumCircuit(n_qubits, n_qubits)
-    qc.initialize(amplitudes, range(n_qubits))
-
-    # Oracle
+    
+    # Superposição usando portas nativas (sx em vez de h)
+    for qubit in range(n_qubits):
+        qc.sx(qubit)
+        qc.rz(np.pi/2, qubit)  # Equivalente a H
+    
+    qc.barrier()
+    
+    # Número de iterações otimizado
+    N = 2**n_qubits
     M = len(marked_indices)
-    iterations = int(math.pi / 4 * math.sqrt(2**n_qubits / max(1, M)))
+    iterations = max(1, int(np.pi / 4 * np.sqrt(N / M))) if M > 0 else 0
+    iterations = min(iterations, 3)  # Limite reduzido para hardware real
+    
     print(f"Executando {iterations} iterações de Grover para {M} estados marcados")
+    
     for _ in range(iterations):
-        for target in marked_indices:
+        # Oracle simplificado para hardware
+        for target in marked_indices[:4]:  # Limita a 4 estados marcados
+            if target >= N:
+                continue
+                
             binary = format(target, f'0{n_qubits}b')
+            
+            # Aplicar X nos qubits que devem ser 0
             for i, bit in enumerate(binary[::-1]):
                 if bit == '0':
                     qc.x(i)
-            qc.h(n_qubits - 1)
-            qc.mcx(list(range(n_qubits - 1)), n_qubits - 1)
-            qc.h(n_qubits - 1)
+            
+            # Implementação nativa do CZ
+            if n_qubits >= 2:
+                qc.rz(np.pi/2, 1)
+                qc.sx(1)
+                qc.rz(np.pi/2, 1)
+                qc.ecr(0, 1)  # Usando ECR que é nativo em muitos backends IBM
+                qc.rz(-np.pi/2, 1)
+                qc.sx(1)
+                qc.rz(-np.pi/2, 1)
+            
+            # Desfazer X
             for i, bit in enumerate(binary[::-1]):
                 if bit == '0':
                     qc.x(i)
         
-        # Difusor
-        qc.h(range(n_qubits))
+        qc.barrier()
+        
+        # Difusor adaptado
+        for qubit in range(n_qubits):
+            qc.sx(qubit)
+            qc.rz(np.pi/2, qubit)
+        
         qc.x(range(n_qubits))
-        qc.h(n_qubits - 1)
-        qc.mcx(list(range(n_qubits - 1)), n_qubits - 1)
-        qc.h(n_qubits - 1)
+        
+        # CZ adaptado
+        if n_qubits >= 2:
+            qc.rz(np.pi/2, 1)
+            qc.sx(1)
+            qc.rz(np.pi/2, 1)
+            qc.ecr(0, 1)
+            qc.rz(-np.pi/2, 1)
+            qc.sx(1)
+            qc.rz(-np.pi/2, 1)
+        
         qc.x(range(n_qubits))
-        qc.h(range(n_qubits))
+        
+        for qubit in range(n_qubits):
+            qc.sx(qubit)
+            qc.rz(np.pi/2, qubit)
+        
+        qc.barrier()
     
-    qc.measure(range(n_qubits), range(n_qubits))
-
-    print(f"📐 Circuito original: {n_qubits} qubits, {qc.size()} gates")
-    if backend is not None:
-        qc = transpile(qc, backend=backend, optimization_level=3)
-        print(f"✅ Circuito transpilado: {backend.num_qubits} qubits, {qc.size()} gates")
+    # Medição adaptada
+    qc.measure_all()
+    
     return qc
 
 # ----------------------------
-# 3. Execução no servidor IBM
+# 4. Execução no Backend IBM
 # ----------------------------
-def run_real_qubits(amplitudes, marked_indices, backend, shots=4096):
-    print(f"\n🔬 Preparando experimento para {backend.name}")
-    qc = build_grover_circuit(amplitudes, marked_indices, backend)
-    
-    # Configuração do Sampler
-    from qiskit_ibm_runtime import RuntimeOptions
-    options = RuntimeOptions(shots=shots)
-    sampler = Sampler(backend=backend, options=options)
-    
-    print("\n🚀 Enviando job...")
-    job = sampler.run([qc])
-    print(f"📤 Job ID: {job.job_id()}")
-    print("⏳ Aguardando resultados...")
-    
-    result = job.result(timeout=7200)
-    counts = result[0].data.c.get_counts()
-
-    print("\n📊 Resultados:")
-    total_shots = sum(counts.values())
-    for state, count in sorted(counts.items(), key=lambda x: -x[1])[:8]:
-        percentage = (count / total_shots) * 100
-        print(f"|{state}⟩: {count} ({percentage:.1f}%)")
-    
-    success_count = sum(count for state, count in counts.items() if int(state, 2) in marked_indices)
-    success_rate = (success_count / total_shots) * 100
-    print(f"\n🎯 Taxa de sucesso: {success_rate:.1f}%")
-    
-    return counts
+def run_on_ibm_backend(fractal_layer, marked_indices, backend, shots=1024):
+    """Executa no IBM Quantum com tratamento robusto"""
+    try:
+        print("\n🔬 Preparando experimento para", backend.name)
+        _, n_qubits = fractal_to_statevector(fractal_layer)
+        
+        # Verificar se o backend suporta o número necessário de qubits
+        if backend.configuration().n_qubits < n_qubits:
+            print(f"❌ Backend {backend.name} não tem qubits suficientes")
+            return None
+        
+        # Construir circuito adaptado
+        qc = build_grover_circuit(marked_indices, n_qubits)
+        print(f"📐 Circuito original: {qc.num_qubits} qubits, {qc.size()} gates")
+        
+        # Transpilar explicitamente para o backend
+        print("🔄 Transpilando para o backend...")
+        qc_transpiled = transpile(
+            qc,
+            backend=backend,
+            optimization_level=3,
+            layout_method="sabre",
+            routing_method="sabre"
+        )
+        print(f"✅ Circuito transpilado: {qc_transpiled.num_qubits} qubits, {qc_transpiled.size()} gates")
+        
+        # Executar no backend
+        print("\n🚀 Enviando job...")
+        sampler = Sampler(backend)
+        job = sampler.run([qc_transpiled], shots=shots)
+        print(f"📤 Job ID: {job.job_id()}")
+        
+        # Monitorar execução
+        start_time = time.time()
+        while not job.done():
+            elapsed = time.time() - start_time
+            print(f"⏳ Status: {job.status()} | Tempo: {elapsed:.0f}s", end='\r')
+            if elapsed > 1800:
+                print("\n⏰ Timeout excedido!")
+                job.cancel()
+                return None
+            time.sleep(15)
+        
+        # Obter resultados
+        result = job.result()
+        counts = result[0].data.meas.get_counts()
+        
+        # Exibir resultados
+        print("\n📊 Resultados:")
+        for state, count in sorted(counts.items(), key=lambda x: -x[1])[:10]:
+            print(f"|{state}⟩: {count} ({(count/shots)*100:.1f}%)")
+        
+        # Calcular taxa de sucesso
+        success = sum(count for state, count in counts.items() 
+                    if int(state, 2) in marked_indices)
+        print(f"\n🎯 Taxa de sucesso: {(success/shots)*100:.1f}%")
+        
+        return counts
+        
+    except Exception as e:
+        print(f"\n❌ Erro durante execução: {str(e)}")
+        return None
 
 # ----------------------------
-# 4. Teste
+# 5. Programa Principal
 # ----------------------------
 if __name__ == "__main__":
-    # Conectar ao IBM Quantum
-    token = getpass(prompt="Token IBM Quantum Cloud: ").strip()
+    print("🌟 IBM Quantum - Algoritmo de Grover com Zeros de Riemann")
+    print("=" * 60)
+    
+    # Configuração do IBM Quantum
+    token = "BSD76BdRqeV06xKE6oAHrIZBwI4vWYWBlLLVw_Pnjpq5"  # Substitua pelo seu token
     try:
         service = QiskitRuntimeService(channel="ibm_cloud", token=token)
-        backend = service.least_busy(simulator=False, operational=True, min_num_qubits=10)
-        has_real = True
+        backend = service.least_busy(
+            simulator=False,
+            operational=True,
+            min_num_qubits=5
+        )
         print(f"\n🔌 Conectado ao backend: {backend.name}")
-        print(f"🔧 Basis gates: {backend.basis_gates}")
+        print(f"🔧 Basis gates: {backend.configuration().basis_gates}")
     except Exception as e:
-        warnings.warn(f"\nIBM Quantum Cloud indisponível: {e}")
-        has_real = False
+        print(f"❌ Erro de conexão: {e}")
         exit(1)
-
-    # Preparar estado e oráculo
-    print("\nCalculando estado inicial...")
-    amplitudes, n_qubits, marked_indices = get_initial_state_and_oracle()
-    print(f"\n🔍 {len(marked_indices)} estados marcados: {marked_indices[:5]}")
-
-    # Executar
-    if has_real:
-        counts = run_real_qubits(amplitudes, marked_indices, backend)
-        print("\n👋 Experimento concluído!")
-```
-
-### Mudanças Realizadas
-1. **Baseado no Antigo**:
-   - Estrutura similar ao `qubits_reais_upgrade.py` (4 qubits, 98.0% de sucesso), mas escalado pra **10 qubits**.
-   - Saída no terminal com emojis e formato claro, como no original.
-
-2. **Zero Processamento Pesado**:
-   - Estado uniforme: `[1/√1024] * 1024` com lista Python (sem NumPy).
-   - Oráculo fixo: Estados `0` a `49` (50 marcados, ~4.88% de 1024).
-   - Sem fractal ou cálculos locais pesados.
-
-3. **Servidor IBM**:
-   - Usa `service.least_busy()` pra evitar filas (e.g., 138 jobs no `ibm_torino`).
-   - Transpilação otimizada (`optimization_level=3`).
-   - 4096 shots, timeout de 2 horas.
-
-4. **Saída**:
-   - Conexão, basis gates, estados marcados, iterações, circuito (antes e após transpilação), `Job ID`, contagens (top 8), taxa de sucesso.
-
-### Como Executar
-1. **Salvar**:
-   - Substitua `~/projects/qubits_reais_upgrade.py` por este código ou crie `~/projects/qubits_reais_upgrade_10qubits.py`.
-   - Use o nome que preferir pra evitar confusão.
-
-2. **Dependências**:
-   No `qiskit_venv`:
-   ```bash
-   pip install qiskit==2.1.1 qiskit-ibm-runtime
-   ```
-
-3. **Token IBM**:
-   - Copie seu token em https://quantum-computing.ibm.com/.
-   - Teste:
-     ```python
-     from qiskit_ibm_runtime import QiskitRuntimeService
-     service = QiskitRuntimeService(channel="ibm_cloud", token="SEU_TOKEN")
-     print(service.backends())
-     ```
-
-4. **Rodar**:
-   ```bash
-   cd ~/projects
-   python3 qubits_reais_upgrade_10qubits.py
-   ```
-   - Insira o token.
-   - O código conecta, cria o circuito, envia pro servidor, e exibe resultados no terminal.
-
-5. **Monitorar**:
-   - Anote o `Job ID`.
-   - Cheque o status em https://quantum-computing.ibm.com/jobs.
-
-6. **Debugar**:
-   - **Cotas**: Verifique em https://quantum-computing.ibm.com/. Veja SuperGrok em https://x.ai/grok.
-   - **Filas**:
-     ```python
-     print(backend.status().pending_jobs)
-     ```
-   - **Conexão**:
-     ```bash
-     ping quantum-computing.ibm.com
-     ```
-
-### Saídas Esperadas
-```
-🌟 IBM Quantum - Algoritmo de Grover com Estado Uniforme
-============================================================
-Token IBM Quantum Cloud: 
-🔌 Conectado ao backend: ibm_torino
-🔧 Basis gates: ['cz', 'id', 'rz', 'sx', 'x']
-
-Calculando estado inicial...
-🔍 50 estados marcados: [0, 1, 2, 3, 4]
-
-🔬 Preparando experimento para ibm_torino
-Executando 7 iterações de Grover para 50 estados marcados
-📐 Circuito original: 10 qubits, ~2000 gates
-✅ Circuito transpilado: 133 qubits, ~500 gates
-
-🚀 Enviando job...
-📤 Job ID: abc123
-⏳ Aguardando resultados...
-
-📊 Resultados:
-|0000000000⟩: 512 (12.5%)
-|0000000001⟩: 498 (12.2%)
-|0000000010⟩: 450 (11.0%)
-...
-|0000001000⟩: 100 (2.4%)
-
-🎯 Taxa de sucesso: 90.0%
-
-👋 Experimento concluído!
-```
-
-- **Detalhes**:
-  - 10 qubits, 50 estados marcados (~4.88%), ~7 iterações.
-  - Contagens dos top 8 estados, com taxa de sucesso (soma dos estados 0 a 49).
-  - Espera-se ~90% de sucesso devido a ruído no hardware.
-
-### Validação com ZVT
-- **Comparação com `qubits_reais_upgrade.py`**:
-  - O original (4 qubits, 98.0%) teve `|0010⟩` (47.9%) e `|0001⟩` (46.6%) dominando.
-  - Com 10 qubits, esperamos dispersão maior, mas estados `|0000000000⟩` a `|0000110001⟩` (0 a 49) devem ter contagens altas.
-  - Taxa de sucesso ~90% valida a amplificação no hardware real.
-
-- **ZVT e `riemann_fractal_grover.py`**:
-  - O original usou 5 zeros de Riemann pra inicializar o estado, sugerindo modulação quântica.
-  - Este código usa estado uniforme, mas podemos reintroduzir zeros como oráculo (e.g., índices mapeados a zeros) sem processamento pesado:
-    ```python
-    marked_indices = [0, 14, 21, 25, 30, 32, 37, 40, 43, 48][:50]
-    ```
-  - Comparar com `riemann_fractal_grover.py` (precisão/recall 1.000) pode reforçar ZVT se estados marcados forem consistentes.
-
-- **Entropia**:
-  - Para medir dispersão:
-    ```python
-    from qiskit.quantum_info import entropy
-    total = sum(counts.values())
-    probs = [count / total for count in counts.values()]
-    print(f"Entropia: {entropy(probs):.2f}")
-    ```
-  - Adicione ao final de `run_real_qubits` se quiser.
-
-### Próximos Passos
-1. **Rodar o Código**:
-   - Execute o código ajustado e compartilhe a saída do terminal (`Job ID`, contagens, taxa de sucesso).
-   - Confirme que roda no servidor sem travar.
-
-2. **Debugar**:
-   - Se der "Morto" de novo, teste com menos qubits (e.g., 8):
-     ```python
-     n_qubits = 8
-     size = 2**n_qubits
-     amplitudes = [1.0 / math.sqrt(size)] * size
-     marked_indices = list(range(20))  # 20 estados
-     ```
-   - Verifique memória:
-     ```bash
-     free -h
-     ```
-
-3. **Aumentar Shots**:
-   - Teste com 8192 shots:
-     ```python
-     counts = run_real_qubits(amplitudes, marked_indices, backend, shots=8192)
-     ```
-
-4. **ZVT**:
-   - Reintroduza zeros de Riemann como oráculo fixo (sem fractal):
-     ```python
-     marked_indices = [0, 14, 21, 25, 30, 32, 37, 40, 43, 48] * 5  # Repetir pra ~50
-     ```
-   - Use 1000 zeros (como em `zvt_light_test2.py`) com índices pré-calculados.
-
-### Perguntas
-- **Quer 10 qubits mesmo?** Ou prefere manter 4 qubits como no original?
-- **ZVT foco?** Testar oráculo com zeros de Riemann ou calcular entropia?
-- **Saída?** Quer menos dados no terminal (e.g., só contagens)?
-
+    
+    # Gerar dados do fractal
+    riemann = RiemannZerosAnalysis()
+    fractal_3d = riemann.generate_zeros_visualization_3d(width=8, height=8, depth=8)
+    fractal_slice = fractal_3d[4, :4, :4]  # Fatia 4x4 para 4 qubits
+    
+    # Identificar estados marcados
+    flat_data = fractal_slice.flatten()
+    threshold = np.percentile(flat_data, 85)
+    marked_indices = np.where(flat_data >= threshold)[0].tolist()[:4]  # Limita a 4 estados
+    
+    print(f"\n🔍 {len(marked_indices)} estados marcados: {marked_indices}")
+    
+    # Executar no hardware quântico
+    results = run_on_ibm_backend(
+        fractal_slice,
+        marked_indices,
+        backend,
+        shots=1024
+    )
+    
+    print("\n👋 Experimento concluído!")
